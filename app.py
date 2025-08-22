@@ -133,20 +133,20 @@ def streamlit_main():
         else:
             st.warning("Please enter a question.")
 
-    st.subheader("📄 Training Documents")
+    # st.subheader("📄 Training Documents")
 
-    pdf_path = "TCS_2024-25.pdf"
+    # pdf_path = "TCS_2024-25.pdf"
 
-    # Load PDF as base64
-    with open(pdf_path, "rb") as f:
-        base64_pdf = base64.b64encode(f.read()).decode("utf-8")
+    # # Load PDF as base64
+    # with open(pdf_path, "rb") as f:
+    #     base64_pdf = base64.b64encode(f.read()).decode("utf-8")
 
-    # Embed PDF viewer
-    pdf_display = f"""
-        <iframe src="data:application/pdf;base64,{base64_pdf}" 
-        width="100%" height="600" type="application/pdf"></iframe>
-    """
-    st.markdown(pdf_display, unsafe_allow_html=True)
+    # # Embed PDF viewer
+    # pdf_display = f"""
+    #     <iframe src="data:application/pdf;base64,{base64_pdf}" 
+    #     width="100%" height="600" type="application/pdf"></iframe>
+    # """
+    # st.markdown(pdf_display, unsafe_allow_html=True)
 
     # # Optional: download button
     # st.download_button(
