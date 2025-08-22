@@ -4,18 +4,17 @@ import numpy as np
 import faiss
 import torch
 import streamlit as st
-import nltk
-from nltk.tokenize import word_tokenize
-from nltk.corpus import stopwords
+
 from rapidfuzz import fuzz
 from sklearn.preprocessing import minmax_scale
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import base64
-nltk.download("word_tokenize", quiet=True)
-nltk.download("stopwords", quiet=True)
-nltk.download("punkt", quiet=True)  # if you use word_tokenize
+from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
+
+stop_words = ENGLISH_STOP_WORDS
+
 
 # ------------------ LOAD RESOURCES ------------------ #
 @st.cache_resource
@@ -50,26 +49,22 @@ def load_models():
 # Load everything once
 faiss_index, bm25, all_chunks = load_indexes()
 pretrain_tokenizer, pretrain_model, finetune_tokenizer, finetune_model, embedding_model = load_models()
-#---------------------Guardrail--------------------------------#
-stop_words = set(stopwords.words("english"))
 
+
+# --------------------- Guardrail: Finance Keywords --------------------- #
 def clean_chunks(chunks):
     unique_words = set()
-    
     for chunk in chunks:
-        tokens = word_tokenize(chunk.lower())
+        tokens = re.findall(r"\w+", chunk.lower())  # regex tokenization
         for token in tokens:
-            # Remove stopwords
             if token in stop_words:
                 continue
-            # Remove digits and words containing digits
-            if re.search(r'\d', token):
+            if re.search(r'\d', token):  # remove numbers
                 continue
-            # Keep only alphabetic tokens
             if token.isalpha():
                 unique_words.add(token)
-    
     return list(unique_words)
+
 
 FINANCE_KEYWORDS = clean_chunks(all_chunks)
 
@@ -89,57 +84,48 @@ def is_fuzzy_match(word, keywords, threshold=80):
             return True
     return False
 
-#---------------------Validate Question --------------------------------#
+
+# --------------------- Validate Question --------------------- #
 def validate_query(query):
     query = query.strip()
     if not query:
         return False, {"reason": "Query is Empty "}
 
-    tokens = re.findall(r"\w+", query.lower())  # split into words
+    tokens = re.findall(r"\w+", query.lower())
 
-    # Length filter (less than 4 words)
     if len(tokens) < 4:
         return False, {"reason": "Query is very short"}
 
-    # Harmful filter
     if any(is_fuzzy_match(token, HARMFUL_KEYWORDS, 95) for token in tokens):
         return False, {"reason": "Query contain harmful word "}
 
-    # Finance filter
     if not any(is_fuzzy_match(token, FINANCE_KEYWORDS) for token in tokens):
         return False, {"reason": "Query is not relevent "}
 
     return True, {"reason": "valid"}
 
-#---------------------Validate Answer --------------------------------#
-def validate_ans(context,answer,threshold=50):
+
+# --------------------- Validate Answer --------------------- #
+def validate_ans(context, answer, threshold=50):
     answer = answer.strip()
     if not answer:
         return False, {"reason": "Query is Empty "}
 
-    tokens = re.findall(r"\w+", answer.lower())  # split into words
+    tokens = re.findall(r"\w+", answer.lower())
 
-
-    # Harmful filter
     if any(is_fuzzy_match(answer, HARMFUL_KEYWORDS, 95) for token in tokens):
         return False, {"reason": "Query contain harmful word "}
 
-    # Finance filter
     score = fuzz.partial_ratio(answer.lower(), context.lower())
     if score < threshold:
-        answer+= " ,Answer is not present in context "
-        return True, {"answer":  answer  }
+        answer += " ,Answer is not present in context "
+        return True, {"answer": answer}
 
-    return True, {"answer":  answer  }
-
+    return True, {"answer": answer}
 
 
 # ------------------ HYBRID SEARCH ------------------ #
 def hybrid_search(query: str, top_n: int = 5, alpha: float = 0.5, use_rrf=False):
-    """
-    Hybrid retrieval combining FAISS (dense) and BM25 (sparse).
-    alpha: weight for dense retrieval (0 to 1) if not using RRF.
-    """
     query_clean = re.sub(r"[^a-zA-Z0-9\s]", "", query.lower())
 
     # Dense retrieval
@@ -149,12 +135,8 @@ def hybrid_search(query: str, top_n: int = 5, alpha: float = 0.5, use_rrf=False)
     dense_results = [(int(idx), float(score)) for idx, score in zip(dense_indices[0], dense_scores[0])]
 
     # Sparse retrieval
-    #sparse_scores = bm25.get_scores(word_tokenize(query_clean))
     tokens = query_clean.split()
-
     sparse_scores = bm25.get_scores(tokens)
-
-
     sparse_indices = np.argsort(sparse_scores)[::-1][:top_n]
     sparse_results = [(int(idx), float(sparse_scores[idx])) for idx in sparse_indices]
 
@@ -186,7 +168,8 @@ def hybrid_search(query: str, top_n: int = 5, alpha: float = 0.5, use_rrf=False)
 def generate_ans(question, searchtype):
     is_valid, result = validate_query(question)
     if not is_valid:
-        return(result["reason"])
+        return result["reason"]
+
     results = hybrid_search(question, top_n=5, alpha=0.6)
     context = "\n".join(text.lower() for text, _ in results)
 
@@ -199,7 +182,7 @@ def generate_ans(question, searchtype):
 
     inputs = tokenizer(input_text, return_tensors="pt", max_length=512, truncation=True)
     outputs = model.generate(**inputs, max_length=100)
-    is_valid, ans=validate_ans(context,tokenizer.decode(outputs[0], skip_special_tokens=True))
+    is_valid, ans = validate_ans(context, tokenizer.decode(outputs[0], skip_special_tokens=True))
     return ans['answer']
 
 
@@ -232,8 +215,6 @@ def streamlit_main():
     st.subheader("📄 Training Documents")
 
     pdf_path = "TCS_2024-25.pdf"
-
-    # # Load PDF as base64
     with open(pdf_path, "rb") as f:
         base64_pdf = base64.b64encode(f.read()).decode("utf-8")
 
@@ -244,22 +225,11 @@ def streamlit_main():
         mime="application/pdf"
     )
 
-    # # Embed PDF viewer
     pdf_display = f"""
         <iframe src="data:application/pdf;base64,{base64_pdf}" 
         width="100%" height="600" type="application/pdf"></iframe>
     """
     st.markdown(pdf_display, unsafe_allow_html=True)
-
-    # # Optional: download button
-   
-    
-#     col1= st.columns(1)[0]
-
-    # with col1:
-    #     st.write("**TCS 2024-25**")
-    #     show_pdf("TCS_2024-25.pdf", width=700, height=600)
-
 
 
 # ------------------ CLI MAIN ------------------ #
