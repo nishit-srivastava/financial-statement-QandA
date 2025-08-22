@@ -4,6 +4,7 @@ import numpy as np
 import faiss
 import torch
 import streamlit as st
+import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from rapidfuzz import fuzz
@@ -12,7 +13,9 @@ from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import base64
-
+nltk.download("word_tokenize", quiet=True)
+nltk.download("stopwords", quiet=True)
+nltk.download("punkt", quiet=True)  # if you use word_tokenize
 
 # ------------------ LOAD RESOURCES ------------------ #
 @st.cache_resource
