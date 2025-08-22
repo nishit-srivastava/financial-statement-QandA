@@ -4,7 +4,9 @@ import numpy as np
 import faiss
 import torch
 import streamlit as st
-#from nltk.tokenize import word_tokenize
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from rapidfuzz import fuzz
 from sklearn.preprocessing import minmax_scale
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
@@ -45,6 +47,88 @@ def load_models():
 # Load everything once
 faiss_index, bm25, all_chunks = load_indexes()
 pretrain_tokenizer, pretrain_model, finetune_tokenizer, finetune_model, embedding_model = load_models()
+#---------------------Guardrail--------------------------------#
+stop_words = set(stopwords.words("english"))
+
+def clean_chunks(chunks):
+    unique_words = set()
+    
+    for chunk in chunks:
+        tokens = word_tokenize(chunk.lower())
+        for token in tokens:
+            # Remove stopwords
+            if token in stop_words:
+                continue
+            # Remove digits and words containing digits
+            if re.search(r'\d', token):
+                continue
+            # Keep only alphabetic tokens
+            if token.isalpha():
+                unique_words.add(token)
+    
+    return list(unique_words)
+
+FINANCE_KEYWORDS = clean_chunks(all_chunks)
+
+
+HARMFUL_KEYWORDS = [
+    "kill", "hate", "bomb", "hack", "terror", 'password', 'credit card',
+    'social security', 'ssn', 'account number', 'routing number', 'login',
+    'credentials', 'hack', 'exploit', 'bypass', 'unauthorized', 'illegal',
+    'scam', 'phishing', 'malware', 'virus'
+]
+
+
+def is_fuzzy_match(word, keywords, threshold=80):
+    """Return True if word is close enough to any keyword."""
+    for keyword in keywords:
+        if fuzz.ratio(word.lower(), keyword.lower()) >= threshold:
+            return True
+    return False
+
+#---------------------Validate Question --------------------------------#
+def validate_query(query):
+    query = query.strip()
+    if not query:
+        return False, {"reason": "Query is Empty "}
+
+    tokens = re.findall(r"\w+", query.lower())  # split into words
+
+    # Length filter (less than 4 words)
+    if len(tokens) < 4:
+        return False, {"reason": "Query is very short"}
+
+    # Harmful filter
+    if any(is_fuzzy_match(token, HARMFUL_KEYWORDS, 95) for token in tokens):
+        return False, {"reason": "Query contain harmful word "}
+
+    # Finance filter
+    if not any(is_fuzzy_match(token, FINANCE_KEYWORDS) for token in tokens):
+        return False, {"reason": "Query is not relevent "}
+
+    return True, {"reason": "valid"}
+
+#---------------------Validate Answer --------------------------------#
+def validate_ans(context,answer,threshold=50):
+    answer = answer.strip()
+    if not answer:
+        return False, {"reason": "Query is Empty "}
+
+    tokens = re.findall(r"\w+", answer.lower())  # split into words
+
+
+    # Harmful filter
+    if any(is_fuzzy_match(answer, HARMFUL_KEYWORDS, 95) for token in tokens):
+        return False, {"reason": "Query contain harmful word "}
+
+    # Finance filter
+    score = fuzz.partial_ratio(answer.lower(), context.lower())
+    if score < threshold:
+        answer+= " ,Answer is not present in context "
+        return True, {"answer":  answer  }
+
+    return True, {"answer":  answer  }
+
 
 
 # ------------------ HYBRID SEARCH ------------------ #
@@ -97,6 +181,9 @@ def hybrid_search(query: str, top_n: int = 5, alpha: float = 0.5, use_rrf=False)
 
 # ------------------ GENERATION ------------------ #
 def generate_ans(question, searchtype):
+    is_valid, result = validate_query(question)
+    if not is_valid:
+        return(result["reason"])
     results = hybrid_search(question, top_n=5, alpha=0.6)
     context = "\n".join(text.lower() for text, _ in results)
 
@@ -109,7 +196,8 @@ def generate_ans(question, searchtype):
 
     inputs = tokenizer(input_text, return_tensors="pt", max_length=512, truncation=True)
     outputs = model.generate(**inputs, max_length=100)
-    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+    is_valid, ans=validate_ans(context,tokenizer.decode(outputs[0], skip_special_tokens=True))
+    return ans['answer']
 
 
 # ------------------ PDF VIEWER ------------------ #
