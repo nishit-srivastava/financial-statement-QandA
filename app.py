@@ -146,6 +146,13 @@ def streamlit_main():
     with open(pdf_path, "rb") as f:
         base64_pdf = base64.b64encode(f.read()).decode("utf-8")
 
+    st.download_button(
+        label="📥 Download PDF",
+        data=open(pdf_path, "rb").read(),
+        file_name="TCS_2024-25.pdf",
+        mime="application/pdf"
+    )
+
     # # Embed PDF viewer
     pdf_display = f"""
         <iframe src="data:application/pdf;base64,{base64_pdf}" 
@@ -154,13 +161,7 @@ def streamlit_main():
     st.markdown(pdf_display, unsafe_allow_html=True)
 
     # # Optional: download button
-    # st.download_button(
-    #     label="📥 Download PDF",
-    #     data=open(pdf_path, "rb").read(),
-    #     file_name="TCS_2024-25.pdf",
-    #     mime="application/pdf"
-    # )
-
+   
     
 #     col1= st.columns(1)[0]
 
