@@ -9,3 +9,4 @@ faiss-cpu
 rank-bm25
 sentencepiece
 protobuf
+rapidfuzz
