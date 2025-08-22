@@ -135,20 +135,33 @@ def streamlit_main():
 
     st.subheader("📄 Training Documents")
 
-    # col1, col2 = st.columns(2)
+    pdf_path = "TCS_2024-25.pdf"
+
+    # Load PDF as base64
+    with open(pdf_path, "rb") as f:
+        base64_pdf = base64.b64encode(f.read()).decode("utf-8")
+
+    # Embed PDF viewer
+    pdf_display = f"""
+        <iframe src="data:application/pdf;base64,{base64_pdf}" 
+        width="100%" height="600" type="application/pdf"></iframe>
+    """
+    st.markdown(pdf_display, unsafe_allow_html=True)
+
+    # # Optional: download button
+    # st.download_button(
+    #     label="📥 Download PDF",
+    #     data=open(pdf_path, "rb").read(),
+    #     file_name="TCS_2024-25.pdf",
+    #     mime="application/pdf"
+    # )
+
+    
+#     col1= st.columns(1)[0]
+
     # with col1:
-    #     st.write("**TCS 2023-24**")
-    #     show_pdf("TCS_2023-24.pdf", width=350, height=500)
-
-    # with col2:
     #     st.write("**TCS 2024-25**")
-    #     show_pdf("TCS_2024-25.pdf", width=350, height=500)
-
-    col1= st.columns(1)[0]
-
-    with col1:
-        st.write("**TCS 2024-25**")
-        show_pdf("TCS_2024-25.pdf", width=700, height=600)
+    #     show_pdf("TCS_2024-25.pdf", width=700, height=600)
 
 
 
