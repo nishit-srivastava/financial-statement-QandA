@@ -170,7 +170,7 @@ def generate_ans(question, searchtype):
     start_time = time.time()
     is_valid, result = validate_query(question)
     if not is_valid:
-        return result["reason"]
+        return result["reason"] ,0
 
     results = hybrid_search(question, top_n=5, alpha=0.6)
     context = "\n".join(text.lower() for text, _ in results)
