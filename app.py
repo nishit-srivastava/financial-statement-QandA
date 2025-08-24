@@ -187,7 +187,7 @@ def generate_ans(question, searchtype):
     is_valid, ans = validate_ans(context, tokenizer.decode(outputs[0], skip_special_tokens=True))
     end_time = time.time()
     inference_time = round((end_time - start_time)*1000 , 2)
-    return ans['answer'] + ' | Inference  Time : ' + str(inference_time)
+    return ans['answer'], inference_time
 
 
 # ------------------ PDF VIEWER ------------------ #
@@ -211,10 +211,12 @@ def streamlit_main():
     if st.button("Get Answer"):
         if question.strip():
             with st.spinner("Generating answer... 🧠"):
-                answer = generate_ans(question, q_type)
-            st.success(answer)
-        else:
-            st.warning("Please enter a question.")
+                answer, inference_time = generate_ans(question, q_type)
+                if inference_time:
+                    st.success(f"🧠 Answer: {answer}")
+                    st.info(f"⚡ Inference Time: {inference_time} ms")
+                else:
+                    st.warning(answer)  # if invalid query
 
     st.subheader("📄 Training Documents")
 
