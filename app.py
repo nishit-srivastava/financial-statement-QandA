@@ -12,6 +12,7 @@ from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import base64
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
+import time
 
 stop_words = ENGLISH_STOP_WORDS
 
