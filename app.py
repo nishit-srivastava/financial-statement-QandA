@@ -166,6 +166,7 @@ def hybrid_search(query: str, top_n: int = 5, alpha: float = 0.5, use_rrf=False)
 
 # ------------------ GENERATION ------------------ #
 def generate_ans(question, searchtype):
+    start_time = time.time()
     is_valid, result = validate_query(question)
     if not is_valid:
         return result["reason"]
@@ -183,7 +184,9 @@ def generate_ans(question, searchtype):
     inputs = tokenizer(input_text, return_tensors="pt", max_length=512, truncation=True)
     outputs = model.generate(**inputs, max_length=100)
     is_valid, ans = validate_ans(context, tokenizer.decode(outputs[0], skip_special_tokens=True))
-    return ans['answer']
+    end_time = time.time()
+    inference_time = round((end_time - start_time)*1000 , 2)
+    return ans['answer'] + ' | Inference  Time : ' + str(inference_time)
 
 
 # ------------------ PDF VIEWER ------------------ #
